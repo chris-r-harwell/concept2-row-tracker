@@ -8,6 +8,7 @@ Analyzes detailed stroke-by-stroke CSVs with focus on HR trends.
 import pandas as pd
 from pathlib import Path
 
+DOWNLOAD_DIR = Path.home() / "concept2_detailed_workouts"
 
 def analyze_detailed_csv(file_path):
     """Analyze one detailed workout CSV"""
@@ -33,7 +34,7 @@ def analyze_detailed_csv(file_path):
 
 def main():
     print("🚣 Concept2 Rowing Analyzer\n")
-    data_dir = Path("concept2_detailed_workouts")
+    data_dir = DOWNLOAD_DIR
     csv_files = sorted(list(data_dir.glob("*.csv")))
 
     if not csv_files:
