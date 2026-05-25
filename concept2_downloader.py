@@ -18,6 +18,7 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 RATE_LIMIT_DELAY = 1.1
 # ================================================================
 
+
 def load_api_token():
     if not CONFIG_PATH.exists():
         print(f"❌ Token not found at {CONFIG_PATH}")
@@ -29,10 +30,7 @@ def main():
     print("🚣 Concept2 Per-Workout Downloader Starting...\n")
     API_TOKEN = load_api_token()
 
-    headers = {
-        "Authorization": f"Bearer {API_TOKEN}",
-        "Accept": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {API_TOKEN}", "Accept": "application/json"}
 
     session = requests.Session()
     session.headers.update(headers)
@@ -41,11 +39,13 @@ def main():
     workouts = []
     page = 1
     while True:
-        resp = session.get(f"https://log.concept2.com/api/users/me/results?page={page}&per_page=50")
+        resp = session.get(
+            f"https://log.concept2.com/api/users/me/results?page={page}&per_page=50"
+        )
         if resp.status_code != 200:
             print(f"Error fetching list: {resp.status_code}")
             break
-        data = resp.json().get('data', [])
+        data = resp.json().get("data", [])
         workouts.extend(data)
         print(f"Fetched page {page}: {len(data)} workouts")
         if len(data) < 50:
@@ -60,12 +60,12 @@ def main():
     skipped = 0
 
     for w in workouts:
-        wid = w.get('id')
+        wid = w.get("id")
         if not wid:
             continue
 
-        date_str = w.get('date', 'unknown').replace(':', '-').replace(' ', '_')
-        distance = w.get('distance', 0)
+        date_str = w.get("date", "unknown").replace(":", "-").replace(" ", "_")
+        distance = w.get("distance", 0)
 
         # Define filenames
         csv_filename = DOWNLOAD_DIR / f"workout_{date_str}_{distance}m_{wid}.csv"
@@ -82,9 +82,9 @@ def main():
         # Try CSV export first (preferred)
         csv_url = f"https://log.concept2.com/api/users/me/results/{wid}/export/csv"
         resp = session.get(csv_url)
-        
+
         if resp.status_code == 200:
-            with open(csv_filename, 'wb') as f:
+            with open(csv_filename, "wb") as f:
                 f.write(resp.content)
             print(f"   ✅ Saved detailed CSV!")
             successful += 1
@@ -95,7 +95,7 @@ def main():
         strokes_url = f"https://log.concept2.com/api/users/me/results/{wid}/strokes"
         resp = session.get(strokes_url)
         if resp.status_code == 200 and not json_filename.exists():
-            with open(json_filename, 'w') as f:
+            with open(json_filename, "w") as f:
                 json.dump(resp.json(), f, indent=2)
             print(f"   ✅ Saved strokes JSON")
 
