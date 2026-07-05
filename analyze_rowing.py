@@ -5,10 +5,34 @@ For Chris Harwell - Row Every Day to Fitness Project
 Analyzes detailed stroke-by-stroke CSVs with focus on HR trends.
 """
 
+import re
+from datetime import datetime
+
 import pandas as pd
 from pathlib import Path
 
 DOWNLOAD_DIR = Path.home() / "concept2_detailed_workouts"
+WORKOUT_CSV_RE = re.compile(
+    r"^workout_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})_\d+m_\d+\.csv$"
+)
+
+
+def workout_datetime(path: Path) -> datetime | None:
+    """Parse workout timestamp from downloader filename."""
+    match = WORKOUT_CSV_RE.match(path.name)
+    if not match:
+        return None
+    return datetime.strptime(match.group(1), "%Y-%m-%d_%H-%M-%S")
+
+
+def recent_workout_files(data_dir: Path, limit: int = 8) -> list[Path]:
+    """Return the most recent workout CSVs, newest first."""
+    files = list(data_dir.glob("*.csv"))
+    return sorted(
+        files,
+        key=lambda p: workout_datetime(p) or datetime.min,
+        reverse=True,
+    )[:limit]
 
 def analyze_detailed_csv(file_path):
     """Analyze one detailed workout CSV"""
@@ -35,7 +59,7 @@ def analyze_detailed_csv(file_path):
 def main():
     print("🚣 Concept2 Rowing Analyzer\n")
     data_dir = DOWNLOAD_DIR
-    csv_files = sorted(list(data_dir.glob("*.csv")))
+    csv_files = recent_workout_files(data_dir)
 
     if not csv_files:
         print("No detailed CSVs found. Run the downloader first!")
@@ -43,7 +67,7 @@ def main():
 
     print(f"Found {len(csv_files)} detailed workout files.\n")
 
-    for csv_file in csv_files[:8]:  # Analyze recent ones
+    for csv_file in csv_files:
         analyze_detailed_csv(csv_file)
 
     print("\n✅ Analysis complete! Great work on your consistency.")
