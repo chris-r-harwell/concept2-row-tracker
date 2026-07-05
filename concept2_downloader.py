@@ -1,41 +1,72 @@
 #!/usr/bin/env python3
 """
-Concept2 Per-Workout Detailed Data Downloader
-Improved: Skips existing files + better organization
+Concept2 Per-Workout Detailed Data Downloader.
+
+Fetches workout lists from the Concept2 API and saves detailed CSV exports plus
+optional per-stroke JSON for each workout.
+
+Examples
+--------
+>>> format_date_str("2026-07-05 08:11:00")
+'2026-07-05_08-11-00'
+>>> paths = build_workout_paths("2026-07-05_08-11-00", 3406, 118201695)
+>>> paths["csv"].name
+'workout_2026-07-05_08-11-00_3406m_118201695.csv'
+>>> paths["json"].name
+'strokes_2026-07-05_08-11-00_3406m_118201695.json'
 """
 
-import requests
-import time
+from __future__ import annotations
+
 import json
+import time
 from pathlib import Path
 
-# ========================= CONFIGURATION =========================
+import requests
+
 CONFIG_PATH = Path.home() / ".config" / "concept2" / "api_key"
-
 DOWNLOAD_DIR = Path.home() / "concept2_detailed_workouts"
-DOWNLOAD_DIR.mkdir(exist_ok=True)
-
 RATE_LIMIT_DELAY = 1.1
-# ================================================================
 
 
-def load_api_token():
-    if not CONFIG_PATH.exists():
-        print(f"❌ Token not found at {CONFIG_PATH}")
+def format_date_str(date_value: str) -> str:
+    """Normalize an API workout date for use in local filenames."""
+    return date_value.replace(":", "-").replace(" ", "_")
+
+
+def build_workout_paths(
+    date_str: str,
+    distance: int,
+    workout_id: int,
+    download_dir: Path = DOWNLOAD_DIR,
+) -> dict[str, Path]:
+    """Build CSV and stroke JSON paths for one workout."""
+    base = f"{date_str}_{distance}m_{workout_id}"
+    return {
+        "csv": download_dir / f"workout_{base}.csv",
+        "json": download_dir / f"strokes_{base}.json",
+    }
+
+
+def load_api_token(config_path: Path = CONFIG_PATH) -> str:
+    """Read the Concept2 API token from disk."""
+    if not config_path.exists():
+        print(f"❌ Token not found at {config_path}")
         raise SystemExit(1)
-    return CONFIG_PATH.read_text().strip()
+    return config_path.read_text().strip()
 
 
-def main():
+def main() -> None:
+    """Download detailed workout files that are not already saved locally."""
     print("🚣 Concept2 Per-Workout Downloader Starting...\n")
-    API_TOKEN = load_api_token()
+    DOWNLOAD_DIR.mkdir(exist_ok=True)
+    api_token = load_api_token()
 
-    headers = {"Authorization": f"Bearer {API_TOKEN}", "Accept": "application/json"}
+    headers = {"Authorization": f"Bearer {api_token}", "Accept": "application/json"}
 
     session = requests.Session()
     session.headers.update(headers)
 
-    # Fetch workout list
     workouts = []
     page = 1
     while True:
@@ -55,53 +86,50 @@ def main():
 
     print(f"\nTotal workouts found: {len(workouts)}\n")
 
-    # Download detailed data
     successful = 0
     skipped = 0
 
-    for w in workouts:
-        wid = w.get("id")
-        if not wid:
+    for workout in workouts:
+        workout_id = workout.get("id")
+        if not workout_id:
             continue
 
-        date_str = w.get("date", "unknown").replace(":", "-").replace(" ", "_")
-        distance = w.get("distance", 0)
+        date_str = format_date_str(workout.get("date", "unknown"))
+        distance = workout.get("distance", 0)
+        paths = build_workout_paths(date_str, distance, workout_id)
 
-        # Define filenames
-        csv_filename = DOWNLOAD_DIR / f"workout_{date_str}_{distance}m_{wid}.csv"
-        json_filename = DOWNLOAD_DIR / f"strokes_{date_str}_{distance}m_{wid}.json"
-
-        # Skip if CSV already exists
-        if csv_filename.exists():
+        if paths["csv"].exists():
             print(f"⏭️  Skipping (already exists): {date_str} ({distance}m)")
             skipped += 1
             continue
 
         print(f"📥 Processing: {date_str} ({distance}m) ...")
 
-        # Try CSV export first (preferred)
-        csv_url = f"https://log.concept2.com/api/users/me/results/{wid}/export/csv"
+        csv_url = (
+            f"https://log.concept2.com/api/users/me/results/{workout_id}/export/csv"
+        )
         resp = session.get(csv_url)
 
         if resp.status_code == 200:
-            with open(csv_filename, "wb") as f:
+            with open(paths["csv"], "wb") as f:
                 f.write(resp.content)
-            print(f"   ✅ Saved detailed CSV!")
+            print("   ✅ Saved detailed CSV!")
             successful += 1
         else:
             print(f"   ⚠️  CSV failed (Status {resp.status_code})")
 
-        # Optional: Also save strokes as JSON
-        strokes_url = f"https://log.concept2.com/api/users/me/results/{wid}/strokes"
+        strokes_url = (
+            f"https://log.concept2.com/api/users/me/results/{workout_id}/strokes"
+        )
         resp = session.get(strokes_url)
-        if resp.status_code == 200 and not json_filename.exists():
-            with open(json_filename, "w") as f:
+        if resp.status_code == 200 and not paths["json"].exists():
+            with open(paths["json"], "w") as f:
                 json.dump(resp.json(), f, indent=2)
-            print(f"   ✅ Saved strokes JSON")
+            print("   ✅ Saved strokes JSON")
 
         time.sleep(RATE_LIMIT_DELAY)
 
-    print(f"\n🎉 Download complete!")
+    print("\n🎉 Download complete!")
     print(f"   ✅ New files downloaded: {successful}")
     print(f"   ⏭️  Skipped (already existed): {skipped}")
     print(f"   📁 All files saved in: {DOWNLOAD_DIR.resolve()}")

@@ -1,0 +1,21 @@
+# Secrets and local config
+.env
+.env.*
+*.pem
+*.key
+api_key
+*_token*
+secrets.*
+
+# Local workout downloads (default: ~/concept2_detailed_workouts)
+concept2_detailed_workouts/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Editor / OS
+.DS_Store
